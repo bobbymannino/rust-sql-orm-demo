@@ -1,10 +1,3 @@
-create table person (
-    person_id serial primary key,
-    first_name text,
-    last_name text not null,
-    created_at timestamptz not null default now()
-);
-
 create table post (
     post_id uuid primary key default gen_random_uuid(),
     title text not null,
