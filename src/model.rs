@@ -3,9 +3,7 @@ use diesel::prelude::*;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-#[derive(
-    Serialize, Deserialize, Queryable, Identifiable, Insertable, Selectable, Debug, PartialEq,
-)]
+#[derive(Serialize, Deserialize, Queryable, Identifiable, Selectable, Debug, PartialEq)]
 #[diesel(table_name = crate::schema::person)]
 #[diesel(primary_key(person_id))]
 pub struct Person {
@@ -13,6 +11,13 @@ pub struct Person {
     pub first_name: Option<String>,
     pub last_name: String,
     pub created_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Deserialize, Serialize, Insertable)]
+#[diesel(table_name = crate::schema::person)]
+pub struct CreatePerson {
+    pub first_name: Option<String>,
+    pub last_name: String,
 }
 
 #[derive(

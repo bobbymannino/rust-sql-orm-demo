@@ -1,8 +1,8 @@
 use axum::Json;
 use axum::extract::Json as ExtractJson;
 use axum::http::StatusCode;
-use chrono::Utc;
-use diesel::prelude::*;
+use diesel::result::Error as DieselError;
+use diesel::{insert_into, prelude::*};
 use serde::Serialize;
 
 use crate::conn::get_connection;
@@ -14,7 +14,7 @@ pub struct ApiError {
     message: String,
 }
 
-enum ApiResponse<T> {
+pub enum ApiResponse<T> {
     Error((StatusCode, Json<ApiError>)),
     Success((StatusCode, Json<T>)),
 }
@@ -59,7 +59,7 @@ pub async fn get_people() -> ApiResponse<PeopleResponse> {
     }
 }
 
-async fn get_people_from_db() -> Result<Vec<Person>, diesel::result::Error> {
+async fn get_people_from_db() -> Result<Vec<Person>, DieselError> {
     let conn = &mut get_connection();
 
     person.select(Person::as_select()).load(conn)
@@ -70,17 +70,31 @@ pub async fn create_person(
 ) -> ApiResponse<Person> {
     if new_person.last_name.trim().is_empty() {
         let error = ApiError {
-            message: "Last name cannot be empty".to_string(),
+            message: "'last_name' cannot be empty".to_string(),
         };
 
         return ApiResponse::Error((StatusCode::BAD_GATEWAY, Json(error)));
     }
 
-    let person = Person {
-        person_id: 1,
-        last_name: "Bob".to_string(),
-        created_at: Utc::now(),
-    };
+    let new_person = create_person_in_db(new_person);
 
-    ApiResponse::Success(StatusCode::CREATED, Json(person))
+    match new_person {
+        Ok(new_person) => ApiResponse::Success((StatusCode::CREATED, Json(new_person))),
+        Err(_) => {
+            let error = ApiError {
+                message: "Failed to create person".to_string(),
+            };
+
+            ApiResponse::Error((StatusCode::INTERNAL_SERVER_ERROR, Json(error)))
+        }
+    }
+}
+
+fn create_person_in_db(new_person: CreatePerson) -> Result<Person, DieselError> {
+    let conn = &mut get_connection();
+
+    insert_into(crate::schema::person::table)
+        .values(&new_person)
+        .returning(Person::as_returning())
+        .get_result(conn)
 }
