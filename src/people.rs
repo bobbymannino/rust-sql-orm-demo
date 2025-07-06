@@ -15,8 +15,8 @@ pub struct ApiError {
 }
 
 pub enum ApiResponse<T> {
-    Error((StatusCode, Json<ApiError>)),
-    Success((StatusCode, Json<T>)),
+    Error((StatusCode, ApiError)),
+    Success((StatusCode, T)),
 }
 
 impl<T> axum::response::IntoResponse for ApiResponse<T>
@@ -25,8 +25,8 @@ where
 {
     fn into_response(self) -> axum::response::Response {
         match self {
-            ApiResponse::Error(res) => res.into_response(),
-            ApiResponse::Success(res) => res.into_response(),
+            ApiResponse::Error((status, err)) => (status, Json(err)).into_response(),
+            ApiResponse::Success((status, data)) => (status, Json(data)).into_response(),
         }
     }
 }
@@ -47,14 +47,14 @@ pub async fn get_people() -> ApiResponse<PeopleResponse> {
                 people,
             };
 
-            ApiResponse::Success((StatusCode::OK, Json(response)))
+            ApiResponse::Success((StatusCode::OK, response))
         }
         Err(_) => {
             let error = ApiError {
                 message: "Failed to get people".to_string(),
             };
 
-            ApiResponse::Error((StatusCode::INTERNAL_SERVER_ERROR, Json(error)))
+            ApiResponse::Error((StatusCode::INTERNAL_SERVER_ERROR, error))
         }
     }
 }
@@ -73,19 +73,19 @@ pub async fn create_person(
             message: "'last_name' cannot be empty".to_string(),
         };
 
-        return ApiResponse::Error((StatusCode::BAD_GATEWAY, Json(error)));
+        return ApiResponse::Error((StatusCode::BAD_GATEWAY, error));
     }
 
     let new_person = create_person_in_db(new_person);
 
     match new_person {
-        Ok(new_person) => ApiResponse::Success((StatusCode::CREATED, Json(new_person))),
+        Ok(new_person) => ApiResponse::Success((StatusCode::CREATED, new_person)),
         Err(_) => {
             let error = ApiError {
                 message: "Failed to create person".to_string(),
             };
 
-            ApiResponse::Error((StatusCode::INTERNAL_SERVER_ERROR, Json(error)))
+            ApiResponse::Error((StatusCode::INTERNAL_SERVER_ERROR, error))
         }
     }
 }
