@@ -1,23 +1,35 @@
 use axum::Json;
+use axum::extract::Json as ExtractJson;
 use axum::http::StatusCode;
+use chrono::Utc;
 use diesel::prelude::*;
-use diesel::result::Error;
-use serde::{Deserialize, Serialize};
-use serde_json::Value;
-use serde_json::json;
+use serde::Serialize;
 
 use crate::conn::get_connection;
-use crate::model::Person;
+use crate::model::{CreatePerson, Person};
 use crate::schema::person::dsl::person;
 
-pub struct ErrorType {
+#[derive(Serialize)]
+pub struct ApiError {
     message: String,
-    status: u16,
 }
 
-type ApiError = (StatusCode, Json<ErrorType>);
-type ApiData<T> = (StatusCode, Json<T>);
-type ApiResponse<T> = Result<ApiData<T>, ApiError>;
+enum ApiResponse<T> {
+    Error((StatusCode, Json<ApiError>)),
+    Success((StatusCode, Json<T>)),
+}
+
+impl<T> axum::response::IntoResponse for ApiResponse<T>
+where
+    T: Serialize,
+{
+    fn into_response(self) -> axum::response::Response {
+        match self {
+            ApiResponse::Error(res) => res.into_response(),
+            ApiResponse::Success(res) => res.into_response(),
+        }
+    }
+}
 
 #[derive(Serialize)]
 pub struct PeopleResponse {
@@ -35,15 +47,14 @@ pub async fn get_people() -> ApiResponse<PeopleResponse> {
                 people,
             };
 
-            Ok((StatusCode::OK, Json(response)))
+            ApiResponse::Success((StatusCode::OK, Json(response)))
         }
         Err(_) => {
-            let error = ErrorType {
+            let error = ApiError {
                 message: "Failed to get people".to_string(),
-                status: StatusCode::INTERNAL_SERVER_ERROR.as_u16(),
             };
 
-            Err((StatusCode::INTERNAL_SERVER_ERROR, Json(error)))
+            ApiResponse::Error((StatusCode::INTERNAL_SERVER_ERROR, Json(error)))
         }
     }
 }
@@ -52,4 +63,24 @@ async fn get_people_from_db() -> Result<Vec<Person>, diesel::result::Error> {
     let conn = &mut get_connection();
 
     person.select(Person::as_select()).load(conn)
+}
+
+pub async fn create_person(
+    ExtractJson(new_person): ExtractJson<CreatePerson>,
+) -> ApiResponse<Person> {
+    if new_person.last_name.trim().is_empty() {
+        let error = ApiError {
+            message: "Last name cannot be empty".to_string(),
+        };
+
+        return ApiResponse::Error((StatusCode::BAD_GATEWAY, Json(error)));
+    }
+
+    let person = Person {
+        person_id: 1,
+        last_name: "Bob".to_string(),
+        created_at: Utc::now(),
+    };
+
+    ApiResponse::Success(StatusCode::CREATED, Json(person))
 }
