@@ -1,0 +1,12 @@
+name: Create person
+method: POST
+url: http://localhost:3005/people
+body:
+  content: |-
+    {
+      "last_name":"bob"
+    }
+  content_type: application/json
+headers:
+- name: content-type
+  value: application/json

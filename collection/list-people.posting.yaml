@@ -1,0 +1,5 @@
+name: List people
+url: http://localhost:3005/people
+headers:
+- name: content-type
+  value: application/json
